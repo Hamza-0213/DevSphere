@@ -70,12 +70,12 @@ fun FavouritesScreen(
         topBar = {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
+                shadowElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -86,18 +86,25 @@ fun FavouritesScreen(
                             Icon(
                                 imageVector = Icons.Filled.Star,
                                 contentDescription = null,
-                                tint = Color(0xFFF59E0B),
-                                modifier = Modifier.size(24.dp)
+                                tint = Color(0xFFEAB308),
+                                modifier = Modifier.size(22.dp)
                             )
-                            Spacer(modifier = Modifier.padding(start = 8.dp))
-                            Text(
-                                text = "Starred & Favourites",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Spacer(modifier = Modifier.padding(start = 10.dp))
+                            Column {
+                                Text(
+                                    text = "Starred & Favorites",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (favourites.size == 1) "1 starred document" else "${favourites.size} starred documents",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         DocumentSortIconButton(
@@ -110,11 +117,11 @@ fun FavouritesScreen(
                     }
 
                     if (favourites.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         DocumentSearchBar(
                             query = searchQuery,
                             onQueryChange = { searchQuery = it },
-                            placeholderText = "Filter favourites by filename...",
+                            placeholderText = "Filter favorites by filename...",
                             testTag = "favourites_search_bar"
                         )
                     }
@@ -130,14 +137,14 @@ fun FavouritesScreen(
         ) {
             if (favourites.isEmpty()) {
                 EmptyStateView(
-                    title = "No Favourites Yet",
+                    title = "No Favorites Yet",
                     description = "Star important documents in your library or while reading to quickly access them anytime.",
                     icon = Icons.Outlined.StarOutline
                 )
             } else if (filteredFavourites.isEmpty()) {
                 EmptyStateView(
-                    title = "No files match \"$searchQuery\"",
-                    description = "No starred documents matched your search filter.",
+                    title = "No Matches Found",
+                    description = "No starred documents matched \"$searchQuery\".",
                     actionButtonText = "Clear Search",
                     onActionClick = { searchQuery = "" }
                 )

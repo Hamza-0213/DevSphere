@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -56,8 +57,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.filemanager.DocumentNameResolver
 import com.example.filemanager.DocumentPrinter
 import com.example.filemanager.DocumentSharing
+import com.example.ui.components.DocumentInfoDialog
+import com.example.ui.components.ViewerHeaderBar
+import com.example.ui.components.ZoomableBox
 
 @Composable
 fun ImageViewerScreen(
@@ -71,77 +76,63 @@ fun ImageViewerScreen(
     val rotationDegrees by viewModel.rotationDegrees.collectAsState()
     val isFullScreen by viewModel.isFullScreen.collectAsState()
 
-    var scale by remember { mutableStateOf(1f) }
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-
     LaunchedEffect(uriString) {
         viewModel.loadImage(uriString)
     }
 
+    val resolvedTitle = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveDisplayName(uriString, docEntity, context)
+    }
+    val ext = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveExtension(uriString, docEntity).ifBlank { "IMG" }
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             if (!isFullScreen) {
-                Surface(
-                    color = Color(0xDD0F172A),
-                    shadowElevation = 4.dp
+                val subtitle = if (uiState is ImageUiState.Success) {
+                    val meta = (uiState as ImageUiState.Success).metadata
+                    "${meta.width} × ${meta.height} px • ${meta.mimeType.substringAfter('/')}"
+                } else {
+                    "Image Preview"
+                }
+
+                ViewerHeaderBar(
+                    title = resolvedTitle,
+                    subtitle = subtitle,
+                    badgeText = ext.uppercase(),
+                    badgeColor = Color(0xFF8B5CF6),
+                    isDarkTheme = true,
+                    onBack = onBack,
+                    backTestTag = "btn_image_back"
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Rotate
+                    IconButton(onClick = { viewModel.rotate90() }) {
+                        Icon(Icons.Filled.RotateRight, contentDescription = "Rotate 90", tint = Color.White)
+                    }
+
+                    // Share
+                    IconButton(
+                        onClick = {
+                            DocumentSharing.shareDocument(context, uriString, "image/*", resolvedTitle)
+                        }
                     ) {
-                        IconButton(onClick = onBack, modifier = Modifier.testTag("btn_image_back")) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                        }
+                        Icon(Icons.Filled.Share, contentDescription = "Share", tint = Color.White)
+                    }
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = docEntity?.displayName ?: "Image",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (uiState is ImageUiState.Success) {
-                                val meta = (uiState as ImageUiState.Success).metadata
-                                Text(
-                                    text = "${meta.width} × ${meta.height} px",
-                                    color = Color.LightGray,
-                                    fontSize = 11.sp
-                                )
-                            }
+                    // Print
+                    IconButton(
+                        onClick = {
+                            DocumentPrinter.printDocument(context, Uri.parse(uriString), resolvedTitle)
                         }
+                    ) {
+                        Icon(Icons.Filled.Print, contentDescription = "Print", tint = Color.White)
+                    }
 
-                        // Rotate
-                        IconButton(onClick = { viewModel.rotate90() }) {
-                            Icon(Icons.Filled.RotateRight, contentDescription = "Rotate 90", tint = Color.White)
-                        }
-
-                        // Fullscreen
-                        IconButton(onClick = { viewModel.toggleFullScreen() }) {
-                            Icon(Icons.Filled.Fullscreen, contentDescription = "Fullscreen", tint = Color.White)
-                        }
-
-                        // Print
-                        IconButton(
-                            onClick = {
-                                DocumentPrinter.printDocument(context, Uri.parse(uriString), docEntity?.displayName ?: "Image")
-                            }
-                        ) {
-                            Icon(Icons.Filled.Print, contentDescription = "Print", tint = Color.White)
-                        }
-
-                        // Share
-                        IconButton(
-                            onClick = {
-                                DocumentSharing.shareDocument(context, uriString, "image/*", docEntity?.displayName)
-                            }
-                        ) {
-                            Icon(Icons.Filled.Share, contentDescription = "Share", tint = Color.White)
-                        }
+                    // Fullscreen
+                    IconButton(onClick = { viewModel.toggleFullScreen() }) {
+                        Icon(Icons.Filled.Fullscreen, contentDescription = "Fullscreen", tint = Color.White)
                     }
                 }
             }
@@ -174,25 +165,13 @@ fun ImageViewerScreen(
                     }
                 }
                 is ImageUiState.Success -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    scale = (scale * zoom).coerceIn(1f, 5f)
-                                    if (scale > 1f) {
-                                        val maxOffsetX = (size.width * (scale - 1f)) / 2f
-                                        val maxOffsetY = (size.height * (scale - 1f)) / 2f
-                                        offsetX = (offsetX + pan.x * scale).coerceIn(-maxOffsetX, maxOffsetX)
-                                        offsetY = (offsetY + pan.y * scale).coerceIn(-maxOffsetY, maxOffsetY)
-                                    } else {
-                                        offsetX = 0f
-                                        offsetY = 0f
-                                    }
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
+                    ZoomableBox(
+                        modifier = Modifier.fillMaxSize(),
+                        maxScale = 6f,
+                        minScale = 1f,
+                        showControls = true,
+                        isDarkOverlay = true
+                    ) { scale, offsetX, offsetY ->
                         AsyncImage(
                             model = Uri.parse(uriString),
                             contentDescription = docEntity?.displayName ?: "Image",

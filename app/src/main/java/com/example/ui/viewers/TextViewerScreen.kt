@@ -1,6 +1,7 @@
 package com.example.ui.viewers
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,11 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -65,8 +68,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.document.text.TextDocument
+import com.example.filemanager.DocumentNameResolver
 import com.example.filemanager.DocumentPrinter
 import com.example.filemanager.DocumentSharing
+import com.example.ui.components.DocumentInfoDialog
+import com.example.ui.components.ViewerHeaderBar
 
 @Composable
 fun TextViewerScreen(
@@ -94,106 +100,117 @@ fun TextViewerScreen(
         else -> Quadruple(Color.White, Color(0xFF1E293B), Color(0xFFF8FAFC), Color(0xFF94A3B8))
     }
 
+    val resolvedTitle = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveDisplayName(uriString, docEntity, context)
+    }
+    val ext = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveExtension(uriString, docEntity).ifBlank { "TXT" }
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            Column(modifier = Modifier.fillMaxWidth()) {
+                val subtitle = when (val state = uiState) {
+                    is TextUiState.Success -> "${state.document.lineCount} lines • ${state.document.characterCount} chars • ${state.document.encoding}"
+                    else -> "Plain Text Document"
+                }
+
+                ViewerHeaderBar(
+                    title = resolvedTitle,
+                    subtitle = subtitle,
+                    badgeText = ext.uppercase(),
+                    badgeColor = Color(0xFF64748B),
+                    isDarkTheme = (readerTheme == "DARK"),
+                    onBack = onBack,
+                    backTestTag = "btn_text_back"
                 ) {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag("btn_text_back")) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    // Search
+                    IconButton(onClick = { isSearching = !isSearching }) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = "Search Text",
+                            tint = if (isSearching) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
-                    if (isSearching) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.onSearchQueryChanged(it) },
-                            placeholder = { Text("Find in text...") },
-                            singleLine = true,
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("text_search_input"),
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    viewModel.onSearchQueryChanged("")
-                                    isSearching = false
-                                }) {
-                                    Icon(Icons.Filled.Clear, contentDescription = "Close search")
-                                }
-                            }
+                    // Toggle Line Numbers
+                    IconButton(onClick = { viewModel.toggleLineNumbers() }) {
+                        Icon(
+                            imageVector = Icons.Filled.FormatListNumbered,
+                            contentDescription = "Toggle Line Numbers",
+                            tint = if (showLineNumbers) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    } else {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = docEntity?.displayName ?: "Text Document",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "Plain Text & Code Reader",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    }
 
-                        // Search
-                        IconButton(onClick = { isSearching = true }) {
-                            Icon(Icons.Filled.Search, contentDescription = "Search Text")
+                    // Theme switch cycle
+                    IconButton(
+                        onClick = {
+                            val nextTheme = when (readerTheme) {
+                                "LIGHT" -> "SEPIA"
+                                "SEPIA" -> "DARK"
+                                else -> "LIGHT"
+                            }
+                            viewModel.setReaderTheme(nextTheme)
                         }
+                    ) {
+                        Icon(
+                            imageVector = when (readerTheme) {
+                                "DARK" -> Icons.Filled.DarkMode
+                                "SEPIA" -> Icons.Filled.LightMode
+                                else -> Icons.Filled.LightMode
+                            },
+                            contentDescription = "Reader Theme"
+                        )
+                    }
 
-                        // Toggle Line Numbers
-                        IconButton(onClick = { viewModel.toggleLineNumbers() }) {
-                            Icon(
-                                imageVector = Icons.Filled.FormatListNumbered,
-                                contentDescription = "Toggle Line Numbers",
-                                tint = if (showLineNumbers) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    // Share
+                    IconButton(
+                        onClick = {
+                            DocumentSharing.shareDocument(context, uriString, "text/plain", resolvedTitle)
                         }
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = "Share")
+                    }
 
-                        // Theme switch cycle
-                        IconButton(
-                            onClick = {
-                                val nextTheme = when (readerTheme) {
-                                    "LIGHT" -> "SEPIA"
-                                    "SEPIA" -> "DARK"
-                                    else -> "LIGHT"
+                    // Print
+                    IconButton(
+                        onClick = {
+                            DocumentPrinter.printDocument(context, Uri.parse(uriString), resolvedTitle)
+                        }
+                    ) {
+                        Icon(Icons.Filled.Print, contentDescription = "Print")
+                    }
+                }
+
+                // Search Bar expansion
+                AnimatedVisibility(visible = isSearching) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                placeholder = { Text("Find in text...", fontSize = 13.sp) },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("text_search_input"),
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                            Icon(Icons.Filled.Clear, contentDescription = "Close search", modifier = Modifier.size(18.dp))
+                                        }
+                                    }
                                 }
-                                viewModel.setReaderTheme(nextTheme)
-                            }
-                        ) {
-                            Icon(
-                                imageVector = when (readerTheme) {
-                                    "DARK" -> Icons.Filled.DarkMode
-                                    "SEPIA" -> Icons.Filled.LightMode
-                                    else -> Icons.Filled.LightMode
-                                },
-                                contentDescription = "Reader Theme"
                             )
-                        }
-
-                        // Print
-                        IconButton(
-                            onClick = {
-                                DocumentPrinter.printDocument(context, Uri.parse(uriString), docEntity?.displayName ?: "Text Document")
-                            }
-                        ) {
-                            Icon(Icons.Filled.Print, contentDescription = "Print")
-                        }
-
-                        // Share
-                        IconButton(
-                            onClick = {
-                                DocumentSharing.shareDocument(context, uriString, "text/plain", docEntity?.displayName)
-                            }
-                        ) {
-                            Icon(Icons.Filled.Share, contentDescription = "Share")
                         }
                     }
                 }
@@ -265,7 +282,10 @@ fun TextViewerScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(vertical = 8.dp)
                             ) {
-                                itemsIndexed(doc.lines) { index, line ->
+                                itemsIndexed(
+                                    items = doc.lines,
+                                    key = { index, _ -> index }
+                                ) { index, line ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically

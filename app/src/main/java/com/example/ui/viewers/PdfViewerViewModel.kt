@@ -3,18 +3,21 @@ package com.example.ui.viewers
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.LruCache
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.database.BookmarkEntity
 import com.example.data.local.database.DocumentEntity
 import com.example.data.repository.DocumentRepository
 import com.example.document.pdf.PdfEngine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed class PdfUiState {
     object Loading : PdfUiState()
@@ -36,6 +39,9 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _currentPage = MutableStateFlow(0) // 0-indexed
     val currentPage: StateFlow<Int> = _currentPage.asStateFlow()
+
+    // High performance in-memory LRU cache for rendered bitmaps
+    private val bitmapCache = object : LruCache<Int, Bitmap>(24) {}
 
     private val _pageBitmaps = MutableStateFlow<Map<Int, Bitmap>>(emptyMap())
     val pageBitmaps: StateFlow<Map<Int, Bitmap>> = _pageBitmaps.asStateFlow()
@@ -94,38 +100,61 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
         val safePage = targetPage.coerceIn(0, (total - 1).coerceAtLeast(0))
         _currentPage.value = safePage
 
-        viewModelScope.launch {
-            // Update reading position in DB
+        // Check if page already in cache
+        val cached = bitmapCache.get(safePage)
+        if (cached != null && !_pageBitmaps.value.containsKey(safePage)) {
+            val updated = _pageBitmaps.value.toMutableMap()
+            updated[safePage] = cached
+            _pageBitmaps.value = updated
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            // Update reading position in DB asynchronously
             currentUri?.let { uri ->
                 val progress = if (total > 0) (safePage + 1).toFloat() / total.toFloat() else 0f
                 repository.updateReadingPosition(uri.toString(), safePage, progress, total)
             }
 
-            // Render current page
-            val currentBmp = pdfEngine.renderPage(safePage)
-            if (currentBmp != null) {
-                val updatedMap = _pageBitmaps.value.toMutableMap()
-                updatedMap[safePage] = currentBmp
-                _pageBitmaps.value = updatedMap
+            // Render current page if not cached
+            var currentBmp = bitmapCache.get(safePage)
+            if (currentBmp == null) {
+                currentBmp = pdfEngine.renderPage(safePage)
+                if (currentBmp != null) {
+                    bitmapCache.put(safePage, currentBmp)
+                }
             }
 
-            // Pre-fetch next page in background for smooth scrolling
-            if (safePage + 1 < total && !_pageBitmaps.value.containsKey(safePage + 1)) {
+            if (currentBmp != null) {
+                withContext(Dispatchers.Main) {
+                    val updatedMap = _pageBitmaps.value.toMutableMap()
+                    updatedMap[safePage] = currentBmp
+                    _pageBitmaps.value = updatedMap
+                }
+            }
+
+            // Pre-fetch next page in background for smooth, latency-free navigation
+            if (safePage + 1 < total && bitmapCache.get(safePage + 1) == null) {
                 val nextBmp = pdfEngine.renderPage(safePage + 1)
                 if (nextBmp != null) {
-                    val map = _pageBitmaps.value.toMutableMap()
-                    map[safePage + 1] = nextBmp
-                    _pageBitmaps.value = map
+                    bitmapCache.put(safePage + 1, nextBmp)
+                    withContext(Dispatchers.Main) {
+                        val map = _pageBitmaps.value.toMutableMap()
+                        map[safePage + 1] = nextBmp
+                        _pageBitmaps.value = map
+                    }
                 }
             }
 
             // Pre-fetch previous page
-            if (safePage - 1 >= 0 && !_pageBitmaps.value.containsKey(safePage - 1)) {
+            if (safePage - 1 >= 0 && bitmapCache.get(safePage - 1) == null) {
                 val prevBmp = pdfEngine.renderPage(safePage - 1)
                 if (prevBmp != null) {
-                    val map = _pageBitmaps.value.toMutableMap()
-                    map[safePage - 1] = prevBmp
-                    _pageBitmaps.value = map
+                    bitmapCache.put(safePage - 1, prevBmp)
+                    withContext(Dispatchers.Main) {
+                        val map = _pageBitmaps.value.toMutableMap()
+                        map[safePage - 1] = prevBmp
+                        _pageBitmaps.value = map
+                    }
                 }
             }
         }
@@ -163,6 +192,7 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
 
     override fun onCleared() {
         super.onCleared()
+        bitmapCache.evictAll()
         pdfEngine.close()
     }
 }

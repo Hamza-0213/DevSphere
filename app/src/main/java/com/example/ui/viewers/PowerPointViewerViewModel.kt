@@ -16,6 +16,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class PptViewMode {
+    SLIDE_CANVAS,
+    OUTLINE
+}
+
 sealed class PptUiState {
     object Loading : PptUiState()
     data class Success(val presentation: PptxPresentation) : PptUiState()
@@ -35,6 +40,9 @@ class PowerPointViewerViewModel(application: Application) : AndroidViewModel(app
 
     private val _currentSlideIndex = MutableStateFlow(0)
     val currentSlideIndex: StateFlow<Int> = _currentSlideIndex.asStateFlow()
+
+    private val _viewMode = MutableStateFlow(PptViewMode.SLIDE_CANVAS)
+    val viewMode: StateFlow<PptViewMode> = _viewMode.asStateFlow()
 
     private val _isFullscreenPresentation = MutableStateFlow(false)
     val isFullscreenPresentation: StateFlow<Boolean> = _isFullscreenPresentation.asStateFlow()
@@ -149,6 +157,14 @@ class PowerPointViewerViewModel(application: Application) : AndroidViewModel(app
 
     fun toggleSpeakerNotes() {
         _showSpeakerNotes.value = !_showSpeakerNotes.value
+    }
+
+    fun setViewMode(mode: PptViewMode) {
+        _viewMode.value = mode
+    }
+
+    fun toggleViewMode() {
+        _viewMode.value = if (_viewMode.value == PptViewMode.SLIDE_CANVAS) PptViewMode.OUTLINE else PptViewMode.SLIDE_CANVAS
     }
 
     fun zoomIn() {

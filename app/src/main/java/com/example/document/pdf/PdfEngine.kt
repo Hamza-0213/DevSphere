@@ -114,7 +114,7 @@ class PdfEngine(private val context: Context) {
     /**
      * Render a specific page (0-indexed) into a high quality Bitmap
      */
-    suspend fun renderPage(pageIndex: Int, targetWidth: Int = 1080): Bitmap? = withContext(Dispatchers.IO) {
+    suspend fun renderPage(pageIndex: Int, targetWidth: Int = 1440): Bitmap? = withContext(Dispatchers.IO) {
         val renderer = pdfRenderer ?: return@withContext null
         if (pageIndex < 0 || pageIndex >= pageCount) return@withContext null
 
@@ -125,8 +125,8 @@ class PdfEngine(private val context: Context) {
             val originalHeight = page.height
 
             val scale = (targetWidth.toFloat() / originalWidth.toFloat()).coerceAtLeast(1.0f)
-            val renderWidth = (originalWidth * scale).toInt().coerceAtMost(2400)
-            val renderHeight = (originalHeight * scale).toInt().coerceAtMost(3600)
+            val renderWidth = (originalWidth * scale).toInt().coerceAtMost(2880)
+            val renderHeight = (originalHeight * scale).toInt().coerceAtMost(4320)
 
             val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(bitmap)

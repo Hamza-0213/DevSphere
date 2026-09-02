@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,8 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,20 +38,43 @@ fun CategoryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val categoryLabel = when (type) {
+        DocumentType.PDF -> "PDF"
+        DocumentType.WORD -> "Word"
+        DocumentType.EXCEL -> "Excel"
+        DocumentType.POWERPOINT -> "PowerPoint"
+        DocumentType.TEXT -> "Text"
+        DocumentType.IMAGE -> "Images"
+        DocumentType.UNKNOWN -> "Other"
+    }
+
+    val borderColor = if (isSelected) {
+        type.primaryColor
+    } else {
+        MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+    }
+
+    val containerColor = if (isSelected) {
+        type.primaryColor.copy(alpha = 0.08f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
     Card(
         modifier = modifier
             .testTag("category_card_${type.name.lowercase()}")
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) type.primaryColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            containerColor = containerColor
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 2.dp else 0.dp)
+        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
-                .padding(14.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -63,45 +85,47 @@ fun CategoryCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(type.primaryColor.copy(alpha = 0.15f)),
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(type.primaryColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = type.icon,
                         contentDescription = type.displayName,
                         tint = type.primaryColor,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
                 Surface(
-                    shape = CircleShape,
-                    color = if (isSelected) type.primaryColor else MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.padding(start = 6.dp)
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (isSelected) type.primaryColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(start = 4.dp)
                 ) {
                     Text(
                         text = "$count",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.SemiBold,
                         color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = type.displayName.substringBefore(" "),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                text = categoryLabel,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 12.5.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isSelected) type.primaryColor else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
         }
     }
 }
+
+

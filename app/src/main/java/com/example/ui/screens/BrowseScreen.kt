@@ -104,7 +104,7 @@ fun BrowseScreen(
         topBar = {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
+                shadowElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier
@@ -138,14 +138,17 @@ fun BrowseScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (currentPath == null) "File Explorer" else currentPath!!.name,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                text = if (currentPath == null) "Storage Browser" else currentPath!!.name,
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                ),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = currentPath?.absolutePath ?: "Device & App Storage Volumes",
+                                text = currentPath?.absolutePath ?: "Device & Application Storage",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -205,7 +208,10 @@ fun BrowseScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sortedItems) { item ->
+                    items(
+                        items = sortedItems,
+                        key = { it.path }
+                    ) { item ->
                         FileItemRow(
                             item = item,
                             onClick = {

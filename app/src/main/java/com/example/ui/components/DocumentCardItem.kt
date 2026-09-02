@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,40 +69,50 @@ fun DocumentCardItem(
     val docType = document.toDocumentType()
     var showMenu by remember { mutableStateOf(false) }
 
+    val starColor by animateColorAsState(
+        targetValue = if (document.isFavourite) Color(0xFFEAB308) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+        animationSpec = tween(durationMillis = 200),
+        label = "starColor"
+    )
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .testTag("document_item_${document.id}")
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 2.dp
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Type Icon Box
+                // Minimalist Document Type Icon Container
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(docType.primaryColor.copy(alpha = 0.15f)),
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(docType.primaryColor.copy(alpha = 0.10f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = docType.icon,
                         contentDescription = docType.displayName,
                         tint = docType.primaryColor,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
@@ -111,29 +125,30 @@ fun DocumentCardItem(
                     Text(
                         text = document.displayName,
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = (-0.1).sp
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = docType.primaryColor.copy(alpha = 0.12f)
+                            color = docType.primaryColor.copy(alpha = 0.10f)
                         ) {
                             Text(
                                 text = document.extension.uppercase(),
-                                fontSize = 10.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = docType.primaryColor,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                             )
                         }
 
@@ -141,19 +156,20 @@ fun DocumentCardItem(
 
                         Text(
                             text = formatFileSize(document.sizeBytes),
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         Text(
                             text = " • ",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
 
                         Text(
                             text = formatTimestamp(if (document.lastOpenedTimestamp > 0) document.lastOpenedTimestamp else document.lastModified),
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
                         )
@@ -169,8 +185,8 @@ fun DocumentCardItem(
                 ) {
                     Icon(
                         imageVector = if (document.isFavourite) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                        contentDescription = if (document.isFavourite) "Remove favourite" else "Add favourite",
-                        tint = if (document.isFavourite) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        contentDescription = if (document.isFavourite) "Remove from favorites" else "Add to favorites",
+                        tint = starColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -185,47 +201,80 @@ fun DocumentCardItem(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
-                            contentDescription = "More options",
+                            contentDescription = "More actions",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
                     DropdownMenu(
                         expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
+                        onDismissRequest = { showMenu = false },
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Share") },
-                            leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                            text = { Text("Share Document", fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Share,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             onClick = {
                                 showMenu = false
                                 onShare()
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Print") },
-                            leadingIcon = { Icon(Icons.Filled.Print, contentDescription = null) },
+                            text = { Text("Print Document", fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Print,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             onClick = {
                                 showMenu = false
                                 onPrint()
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Details") },
-                            leadingIcon = { Icon(Icons.Filled.Info, contentDescription = null) },
+                            text = { Text("Document Details", fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             onClick = {
                                 showMenu = false
                                 onInfo()
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete / Remove", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                            text = { Text("Delete File", color = MaterialTheme.colorScheme.error, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
                             onClick = {
                                 showMenu = false
                                 onDelete()
-                            }
+                            },
+                            colors = MenuDefaults.itemColors(
+                                textColor = MaterialTheme.colorScheme.error
+                            )
                         )
                     }
                 }
@@ -246,12 +295,13 @@ fun DocumentCardItem(
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
                         color = docType.primaryColor,
-                        trackColor = docType.primaryColor.copy(alpha = 0.15f)
+                        trackColor = docType.primaryColor.copy(alpha = 0.12f)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${(document.readingProgressPercent * 100).toInt()}%",
-                        fontSize = 10.sp,
+                        text = "${(document.readingProgressPercent * 100).toInt()}% completed",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -281,3 +331,5 @@ fun formatTimestamp(timestamp: Long): String {
         else -> SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(timestamp))
     }
 }
+
+

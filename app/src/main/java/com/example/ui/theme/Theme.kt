@@ -16,7 +16,7 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = DarkOnPrimary,
     primaryContainer = DarkPrimaryContainer,
     onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = DocSphereBlueLight,
+    secondary = BrandPrimaryLight,
     onSecondary = DarkOnPrimary,
     background = DarkBackground,
     onBackground = DarkOnSurface,
@@ -24,7 +24,8 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = DarkOnSurface,
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
-    outline = Slate600
+    outline = DarkOutline,
+    outlineVariant = DarkOutline.copy(alpha = 0.5f)
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -32,7 +33,7 @@ private val LightColorScheme = lightColorScheme(
     onPrimary = LightOnPrimary,
     primaryContainer = LightPrimaryContainer,
     onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = DocSphereBlueDark,
+    secondary = BrandPrimaryDark,
     onSecondary = Color.White,
     background = LightBackground,
     onBackground = LightOnSurface,
@@ -40,7 +41,8 @@ private val LightColorScheme = lightColorScheme(
     onSurface = LightOnSurface,
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
-    outline = Slate200
+    outline = LightOutline,
+    outlineVariant = LightOutline
 )
 
 @Composable
@@ -74,4 +76,5 @@ fun MyApplicationTheme(
 ) {
     DocSphereTheme(darkTheme = darkTheme, dynamicColor = dynamicColor, content = content)
 }
+
 

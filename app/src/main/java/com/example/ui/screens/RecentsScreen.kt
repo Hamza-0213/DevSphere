@@ -73,12 +73,12 @@ fun RecentsScreen(
         topBar = {
             Surface(
                 color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
+                shadowElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -90,17 +90,24 @@ fun RecentsScreen(
                                 imageVector = Icons.Filled.History,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(22.dp)
                             )
-                            Spacer(modifier = Modifier.padding(start = 8.dp))
-                            Text(
-                                text = "Recent Documents",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Spacer(modifier = Modifier.padding(start = 10.dp))
+                            Column {
+                                Text(
+                                    text = "Recent Documents",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (recents.size == 1) "1 recent document" else "${recents.size} recent documents",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         if (recents.isNotEmpty()) {
@@ -111,14 +118,15 @@ fun RecentsScreen(
                                 Icon(
                                     imageVector = Icons.Filled.DeleteSweep,
                                     contentDescription = "Clear History",
-                                    tint = MaterialTheme.colorScheme.error
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
                     }
 
                     if (recents.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         DocumentSearchBar(
                             query = searchQuery,
                             onQueryChange = { searchQuery = it },
@@ -138,14 +146,14 @@ fun RecentsScreen(
         ) {
             if (recents.isEmpty()) {
                 EmptyStateView(
-                    title = "No Recent Documents",
+                    title = "No Recent Activity",
                     description = "Documents you open and read will appear here with your saved reading progress.",
                     icon = Icons.Outlined.History
                 )
             } else if (filteredRecents.isEmpty()) {
                 EmptyStateView(
-                    title = "No files match \"$searchQuery\"",
-                    description = "No recent documents matched your search filter.",
+                    title = "No Matches Found",
+                    description = "No recent documents matched \"$searchQuery\".",
                     actionButtonText = "Clear Search",
                     onActionClick = { searchQuery = "" }
                 )

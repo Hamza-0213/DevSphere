@@ -9,14 +9,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -39,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,8 +64,11 @@ import com.example.document.word.DocxDocument
 import com.example.document.word.DocxElement
 import com.example.document.word.TableCell
 import com.example.document.word.TableRow
+import com.example.filemanager.DocumentNameResolver
 import com.example.filemanager.DocumentPrinter
 import com.example.filemanager.DocumentSharing
+import com.example.ui.components.DocumentInfoDialog
+import com.example.ui.components.ViewerHeaderBar
 
 @Composable
 fun WordViewerScreen(
@@ -78,61 +85,54 @@ fun WordViewerScreen(
         viewModel.loadWordDocument(uriString)
     }
 
+    val resolvedTitle = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveDisplayName(uriString, docEntity, context)
+    }
+    val ext = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveExtension(uriString, docEntity).ifBlank { "DOCX" }
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
+            val subtitle = when (val state = uiState) {
+                is WordUiState.Success -> "${state.document.paragraphCount} paragraphs • ${state.document.elements.size} elements"
+                else -> "Word Processor Document"
+            }
+            ViewerHeaderBar(
+                title = resolvedTitle,
+                subtitle = subtitle,
+                badgeText = ext.uppercase(),
+                badgeColor = Color(0xFF2563EB),
+                isDarkTheme = false,
+                onBack = onBack,
+                backTestTag = "btn_word_back"
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // Font Size Controls
+                IconButton(onClick = { viewModel.decreaseFont() }, modifier = Modifier.size(36.dp)) {
+                    Text("A-", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                }
+                IconButton(onClick = { viewModel.increaseFont() }, modifier = Modifier.size(36.dp)) {
+                    Text("A+", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
+                }
+
+                // Share
+                IconButton(
+                    onClick = {
+                        val mime = if (ext.lowercase() == "doc") "application/msword" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        DocumentSharing.shareDocument(context, uriString, mime, resolvedTitle)
+                    }
                 ) {
-                    IconButton(onClick = onBack, modifier = Modifier.testTag("btn_word_back")) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                    Icon(Icons.Filled.Share, contentDescription = "Share")
+                }
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = docEntity?.displayName ?: "Word Document",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Word Processor View",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                // Print
+                IconButton(
+                    onClick = {
+                        DocumentPrinter.printDocument(context, Uri.parse(uriString), resolvedTitle)
                     }
-
-                    // Font Size Controls
-                    IconButton(onClick = { viewModel.decreaseFont() }, modifier = Modifier.size(36.dp)) {
-                        Text("A-", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                    IconButton(onClick = { viewModel.increaseFont() }, modifier = Modifier.size(36.dp)) {
-                        Text("A+", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-
-                    // Print
-                    IconButton(
-                        onClick = {
-                            DocumentPrinter.printDocument(context, Uri.parse(uriString), docEntity?.displayName ?: "Word Document")
-                        }
-                    ) {
-                        Icon(Icons.Filled.Print, contentDescription = "Print")
-                    }
-
-                    // Share
-                    IconButton(
-                        onClick = {
-                            DocumentSharing.shareDocument(context, uriString, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docEntity?.displayName)
-                        }
-                    ) {
-                        Icon(Icons.Filled.Share, contentDescription = "Share")
-                    }
+                ) {
+                    Icon(Icons.Filled.Print, contentDescription = "Print")
                 }
             }
         }
@@ -214,7 +214,10 @@ private fun DocxContent(
         }
 
         // Render document elements
-        items(doc.elements) { element ->
+        itemsIndexed(
+            items = doc.elements,
+            key = { index, _ -> index }
+        ) { _, element ->
             when (element) {
                 is DocxElement.Paragraph -> {
                     ParagraphView(paragraph = element, fontScale = fontScale)
@@ -234,40 +237,43 @@ private fun ParagraphView(paragraph: DocxElement.Paragraph, fontScale: Float) {
         return
     }
 
-    val annotated = buildAnnotatedString {
-        if (paragraph.isBullet) {
-            append("  •  ")
-        }
-        for (run in paragraph.runs) {
-            val textDeco = when {
-                run.isUnderline && run.isStrike -> TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough))
-                run.isUnderline -> TextDecoration.Underline
-                run.isStrike -> TextDecoration.LineThrough
-                else -> TextDecoration.None
+    val defaultTextColor = MaterialTheme.colorScheme.onBackground
+    val annotated = remember(paragraph, fontScale, defaultTextColor) {
+        buildAnnotatedString {
+            if (paragraph.isBullet) {
+                append("  •  ")
             }
-
-            var textColor = MaterialTheme.colorScheme.onBackground
-            if (run.colorHex != null) {
-                try {
-                    val clean = run.colorHex.removePrefix("#")
-                    if (clean.length == 6) {
-                        textColor = Color(android.graphics.Color.parseColor("#$clean"))
-                    }
-                } catch (e: Exception) {
-                    // Ignore parse error
+            for (run in paragraph.runs) {
+                val textDeco = when {
+                    run.isUnderline && run.isStrike -> TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough))
+                    run.isUnderline -> TextDecoration.Underline
+                    run.isStrike -> TextDecoration.LineThrough
+                    else -> TextDecoration.None
                 }
-            }
 
-            withStyle(
-                style = SpanStyle(
-                    fontWeight = if (run.isBold || paragraph.isTitle || paragraph.isHeading) FontWeight.Bold else FontWeight.Normal,
-                    fontStyle = if (run.isItalic) FontStyle.Italic else FontStyle.Normal,
-                    textDecoration = textDeco,
-                    fontSize = (run.sizeSp * fontScale).sp,
-                    color = textColor
-                )
-            ) {
-                append(run.text)
+                var textColor = defaultTextColor
+                if (run.colorHex != null) {
+                    try {
+                        val clean = run.colorHex.removePrefix("#")
+                        if (clean.length == 6) {
+                            textColor = Color(android.graphics.Color.parseColor("#$clean"))
+                        }
+                    } catch (e: Exception) {
+                        // Ignore parse error
+                    }
+                }
+
+                withStyle(
+                    style = SpanStyle(
+                        fontWeight = if (run.isBold || paragraph.isTitle || paragraph.isHeading) FontWeight.Bold else FontWeight.Normal,
+                        fontStyle = if (run.isItalic) FontStyle.Italic else FontStyle.Normal,
+                        textDecoration = textDeco,
+                        fontSize = (run.sizeSp * fontScale).sp,
+                        color = textColor
+                    )
+                ) {
+                    append(run.text)
+                }
             }
         }
     }

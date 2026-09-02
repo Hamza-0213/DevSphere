@@ -29,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.data.local.database.DocumentEntity
 import com.example.domain.model.DocumentType
@@ -59,24 +61,37 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.testTag("main_bottom_nav")
-            ) {
-                BottomNavTab.values().forEach { tab ->
-                    val isSelected = (currentTab == tab)
-                    NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { currentTab = tab },
-                        icon = {
-                            Icon(
-                                imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                                contentDescription = tab.title
-                            )
-                        },
-                        label = { Text(tab.title) },
-                        modifier = Modifier.testTag(tab.testTag)
-                    )
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.HorizontalDivider(
+                    thickness = 0.8.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                )
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp,
+                    modifier = Modifier.testTag("main_bottom_nav")
+                ) {
+                    BottomNavTab.values().forEach { tab ->
+                        val isSelected = (currentTab == tab)
+                        NavigationBarItem(
+                            selected = isSelected,
+                            onClick = { currentTab = tab },
+                            icon = {
+                                Icon(
+                                    imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                    contentDescription = tab.title
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = tab.title,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal
+                                )
+                            },
+                            modifier = Modifier.testTag(tab.testTag)
+                        )
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 package com.example.ui.viewers
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,11 +12,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -64,8 +67,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.document.excel.XlsxCell
 import com.example.document.excel.XlsxSheet
+import com.example.filemanager.DocumentNameResolver
 import com.example.filemanager.DocumentPrinter
 import com.example.filemanager.DocumentSharing
+import com.example.ui.components.DocumentInfoDialog
+import com.example.ui.components.ViewerHeaderBar
 
 @Composable
 fun ExcelViewerScreen(
@@ -86,94 +92,111 @@ fun ExcelViewerScreen(
         viewModel.loadSpreadsheet(uriString)
     }
 
-    Scaffold(
-        topBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = onBack, modifier = Modifier.testTag("btn_excel_back")) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
-                        }
+    val resolvedTitle = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveDisplayName(uriString, docEntity, context)
+    }
+    val ext = remember(uriString, docEntity) {
+        DocumentNameResolver.resolveExtension(uriString, docEntity).ifBlank { "XLSX" }
+    }
 
-                        if (isSearching) {
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                val subtitle = when (val state = uiState) {
+                    is ExcelUiState.Success -> {
+                        val activeSheet = state.workbook.sheets.getOrNull(activeSheetIndex)
+                        if (activeSheet != null) {
+                            "${activeSheet.name} • ${activeSheet.maxRows} rows × ${activeSheet.maxColumns} cols"
+                        } else {
+                            "${state.workbook.sheets.size} sheet(s)"
+                        }
+                    }
+                    else -> "Spreadsheet Workbook"
+                }
+
+                ViewerHeaderBar(
+                    title = resolvedTitle,
+                    subtitle = subtitle,
+                    badgeText = ext.uppercase(),
+                    badgeColor = Color(0xFF10B981),
+                    isDarkTheme = false,
+                    onBack = onBack,
+                    backTestTag = "btn_excel_back"
+                ) {
+                    IconButton(onClick = { isSearching = !isSearching }) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = "Search Sheet",
+                            tint = if (isSearching) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            val mime = if (ext.lowercase() == "xls") "application/vnd.ms-excel" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            DocumentSharing.shareDocument(context, uriString, mime, resolvedTitle)
+                        }
+                    ) {
+                        Icon(Icons.Filled.Share, contentDescription = "Share")
+                    }
+
+                    IconButton(
+                        onClick = {
+                            DocumentPrinter.printDocument(context, Uri.parse(uriString), resolvedTitle)
+                        }
+                    ) {
+                        Icon(Icons.Filled.Print, contentDescription = "Print")
+                    }
+                }
+
+                // Search field bar when searching
+                AnimatedVisibility(visible = isSearching) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             OutlinedTextField(
                                 value = searchQuery,
                                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                                placeholder = { Text("Find in spreadsheet...") },
+                                placeholder = { Text("Find in spreadsheet...", fontSize = 13.sp) },
                                 singleLine = true,
                                 modifier = Modifier
                                     .weight(1f)
                                     .testTag("excel_search_input"),
                                 trailingIcon = {
-                                    IconButton(onClick = {
-                                        viewModel.onSearchQueryChanged("")
-                                        isSearching = false
-                                    }) {
-                                        Icon(Icons.Filled.Clear, contentDescription = "Close search")
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                            Icon(Icons.Filled.Clear, contentDescription = "Clear search", modifier = Modifier.size(18.dp))
+                                        }
                                     }
                                 }
                             )
-                        } else {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = docEntity?.displayName ?: "Spreadsheet",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "Workbook Grid View",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            IconButton(onClick = { isSearching = true }) {
-                                Icon(Icons.Filled.Search, contentDescription = "Search Sheet")
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    DocumentPrinter.printDocument(context, Uri.parse(uriString), docEntity?.displayName ?: "Spreadsheet")
-                                }
-                            ) {
-                                Icon(Icons.Filled.Print, contentDescription = "Print")
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    DocumentSharing.shareDocument(context, uriString, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", docEntity?.displayName)
-                                }
-                            ) {
-                                Icon(Icons.Filled.Share, contentDescription = "Share")
-                            }
                         }
                     }
+                }
 
-                    // Sheets Tabs
-                    if (uiState is ExcelUiState.Success) {
-                        val sheets = (uiState as ExcelUiState.Success).workbook.sheets
-                        if (sheets.size > 1) {
-                            ScrollableTabRow(
-                                selectedTabIndex = activeSheetIndex.coerceIn(0, sheets.size - 1),
-                                edgePadding = 16.dp,
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            ) {
-                                sheets.forEachIndexed { index, sheet ->
-                                    Tab(
-                                        selected = (activeSheetIndex == index),
-                                        onClick = { viewModel.selectSheet(index) },
-                                        text = { Text(sheet.name, fontWeight = if (activeSheetIndex == index) FontWeight.Bold else FontWeight.Normal) }
-                                    )
-                                }
+                // Sheets Tabs
+                if (uiState is ExcelUiState.Success) {
+                    val sheets = (uiState as ExcelUiState.Success).workbook.sheets
+                    if (sheets.size > 1) {
+                        ScrollableTabRow(
+                            selectedTabIndex = activeSheetIndex.coerceIn(0, sheets.size - 1),
+                            edgePadding = 16.dp,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ) {
+                            sheets.forEachIndexed { index, sheet ->
+                                Tab(
+                                    selected = (activeSheetIndex == index),
+                                    onClick = { viewModel.selectSheet(index) },
+                                    text = { Text(sheet.name, fontWeight = if (activeSheetIndex == index) FontWeight.Bold else FontWeight.Normal) }
+                                )
                             }
                         }
                     }
@@ -334,10 +357,23 @@ private fun SpreadsheetMatrix(
             }
 
             // Data Rows
-            itemsIndexed(sheet.rows) { rowIdx, row ->
+            items(
+                items = sheet.rows,
+                key = { it.rowIndex }
+            ) { row ->
+                val cellMap = remember(row) {
+                    val map = arrayOfNulls<XlsxCell>(sheet.maxColumns)
+                    row.cells.forEach { c ->
+                        if (c.columnIndex in 0 until sheet.maxColumns) {
+                            map[c.columnIndex] = c
+                        }
+                    }
+                    map
+                }
+
                 Row(
                     modifier = Modifier.background(
-                        if (rowIdx % 2 == 1) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                        if (row.rowIndex % 2 == 1) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
                         else MaterialTheme.colorScheme.surface
                     )
                 ) {
@@ -357,9 +393,9 @@ private fun SpreadsheetMatrix(
                         )
                     }
 
-                    // Cells in row
+                    // Fast O(1) indexed cells in row
                     for (colIdx in 0 until sheet.maxColumns) {
-                        val cell = row.cells.firstOrNull { it.columnIndex == colIdx }
+                        val cell = cellMap[colIdx]
                         val cellValue = cell?.value ?: ""
                         val isMatched = searchQuery.isNotBlank() && cellValue.contains(searchQuery, ignoreCase = true)
                         val isSelected = selectedCell != null && selectedCell.rowIndex == row.rowIndex - 1 && selectedCell.columnIndex == colIdx

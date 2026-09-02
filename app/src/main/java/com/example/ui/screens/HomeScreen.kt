@@ -268,7 +268,7 @@ fun HomeScreen(
                         searchQuery.isNotBlank() && selectedCategory != null -> 
                             "${selectedCategory?.displayName} matching \"$searchQuery\" (${filteredDocs.size})"
                         searchQuery.isNotBlank() -> 
-                            "Matching \"$searchQuery\" (${filteredDocs.size})"
+                            "Results for \"$searchQuery\" (${filteredDocs.size})"
                         selectedCategory != null -> 
                             "${selectedCategory?.displayName} (${filteredDocs.size})"
                         else -> 
@@ -277,7 +277,10 @@ fun HomeScreen(
 
                     Text(
                         text = headerText,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        ),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f, fill = false)
                     )
@@ -291,7 +294,7 @@ fun HomeScreen(
                                 onClick = { searchQuery = "" },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear search", fontSize = 12.sp)
+                                Text("Clear", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
@@ -300,7 +303,7 @@ fun HomeScreen(
                                 onClick = { viewModel.setSelectedCategory(null) },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear category", fontSize = 12.sp)
+                                Text("Reset Filter", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
 
@@ -318,20 +321,28 @@ fun HomeScreen(
             // 5. Document List
             if (filteredDocs.isEmpty()) {
                 item {
-                    val emptyTitle = if (searchQuery.isNotBlank()) "No files match \"$searchQuery\"" else "No documents found"
+                    val emptyTitle = if (searchQuery.isNotBlank()) {
+                        "No Matches Found"
+                    } else if (selectedCategory != null) {
+                        "No ${selectedCategory?.displayName} Files"
+                    } else {
+                        "No Documents Yet"
+                    }
+
                     val emptyDescription = if (searchQuery.isNotBlank()) {
                         "No documents matching \"$searchQuery\" were found in your library."
                     } else if (selectedCategory != null) {
-                        "No documents match the ${selectedCategory?.displayName} filter."
+                        "No ${selectedCategory?.displayName} documents currently found in your index."
                     } else {
-                        "No documents found in library. Tap 'Open File' to add files."
+                        "Your library is empty. Tap 'Open File' to add documents or restore sample files."
                     }
+
                     val emptyActionText = if (searchQuery.isNotBlank()) {
                         "Clear Search"
                     } else if (selectedCategory != null) {
-                        "Show All"
+                        "Show All Documents"
                     } else {
-                        "Restore Samples"
+                        "Restore Sample Documents"
                     }
 
                     EmptyStateView(

@@ -154,13 +154,42 @@ object PptBinaryParser {
                 }
 
                 slides.add(
-                    PptxSlide(
+                    PptSlide(
                         slideNumber = num++,
                         title = title,
                         textBlocks = blocks,
-                        bulletPoints = bullets
+                        bulletPoints = bullets,
+                        themeVariant = (num - 1) % 6
                     )
                 )
+            }
+
+            // Extract any embedded JPEG or PNG images from PPT stream
+            val embeddedImages = extractBinaryImages(bytes)
+            if (embeddedImages.isNotEmpty() && slides.isNotEmpty()) {
+                // Distribute extracted images across slides
+                val updatedSlides = slides.mapIndexed { idx, slide ->
+                    val img = embeddedImages.getOrNull(idx)
+                    if (img != null) {
+                        slide.copy(
+                            images = listOf(img),
+                            elements = slide.elements + listOf(
+                                PptSlideElement(
+                                    type = PptElementType.IMAGE,
+                                    xRatio = 0.55f,
+                                    yRatio = 0.25f,
+                                    widthRatio = 0.40f,
+                                    heightRatio = 0.55f,
+                                    imageBytes = img,
+                                    cornerRadiusDp = 12f
+                                )
+                            )
+                        )
+                    } else {
+                        slide
+                    }
+                }
+                return updatedSlides
             }
 
         } catch (e: Exception) {
@@ -222,14 +251,15 @@ object PptBinaryParser {
             }
             .distinct()
 
-        val slides = mutableListOf<PptxSlide>()
+        val slides = mutableListOf<PptSlide>()
         if (cleanStrings.isEmpty()) {
             slides.add(
-                PptxSlide(
+                PptSlide(
                     slideNumber = 1,
                     title = defaultTitle,
                     textBlocks = listOf("PowerPoint presentation loaded. No editable text blocks found in this slide deck."),
-                    bulletPoints = emptyList()
+                    bulletPoints = emptyList(),
+                    themeVariant = 0
                 )
             )
         } else {
@@ -249,22 +279,111 @@ object PptBinaryParser {
                 }
 
                 slides.add(
-                    PptxSlide(
+                    PptSlide(
                         slideNumber = index + 1,
                         title = slideTitle,
                         textBlocks = blocks,
-                        bulletPoints = bullets
+                        bulletPoints = bullets,
+                        themeVariant = index % 6
                     )
                 )
             }
         }
 
+        // Attach any binary extracted images
+        val embeddedImages = extractBinaryImages(bytes)
+        val finalSlides = if (embeddedImages.isNotEmpty()) {
+            slides.mapIndexed { idx, slide ->
+                val img = embeddedImages.getOrNull(idx)
+                if (img != null) {
+                    slide.copy(
+                        images = listOf(img),
+                        elements = slide.elements + listOf(
+                            PptSlideElement(
+                                type = PptElementType.IMAGE,
+                                xRatio = 0.55f,
+                                yRatio = 0.25f,
+                                widthRatio = 0.40f,
+                                heightRatio = 0.55f,
+                                imageBytes = img,
+                                cornerRadiusDp = 12f
+                            )
+                        )
+                    )
+                } else slide
+            }
+        } else {
+            slides
+        }
+
         return PptxPresentation(
-            title = slides.firstOrNull()?.title?.takeIf { it.isNotBlank() } ?: defaultTitle,
-            slides = slides,
-            totalSlides = slides.size,
+            title = finalSlides.firstOrNull()?.title?.takeIf { it.isNotBlank() } ?: defaultTitle,
+            slides = finalSlides,
+            totalSlides = finalSlides.size,
             format = "PowerPoint Presentation (.ppt)"
         )
+    }
+
+    private fun extractBinaryImages(bytes: ByteArray): List<ByteArray> {
+        val images = mutableListOf<ByteArray>()
+        if (bytes.size < 64) return images
+
+        try {
+            var i = 0
+            while (i < bytes.size - 16 && images.size < 20) {
+                // Check for PNG header: 89 50 4E 47 0D 0A 1A 0A
+                if (bytes[i] == 0x89.toByte() && bytes[i + 1] == 0x50.toByte() &&
+                    bytes[i + 2] == 0x4E.toByte() && bytes[i + 3] == 0x47.toByte() &&
+                    bytes[i + 4] == 0x0D.toByte() && bytes[i + 5] == 0x0A.toByte() &&
+                    bytes[i + 6] == 0x1A.toByte() && bytes[i + 7] == 0x0A.toByte()
+                ) {
+                    val start = i
+                    var end = -1
+                    // Look for IEND chunk: 49 45 4E 44 AE 42 60 82
+                    var j = start + 8
+                    while (j < bytes.size - 8 && (j - start) < 5_000_000) {
+                        if (bytes[j] == 0x49.toByte() && bytes[j + 1] == 0x45.toByte() &&
+                            bytes[j + 2] == 0x4E.toByte() && bytes[j + 3] == 0x44.toByte()
+                        ) {
+                            end = j + 8 // Include CRC
+                            break
+                        }
+                        j++
+                    }
+                    if (end > start && end <= bytes.size) {
+                        images.add(bytes.copyOfRange(start, end))
+                        i = end
+                        continue
+                    }
+                }
+
+                // Check for JPEG header: FF D8 FF
+                if (bytes[i] == 0xFF.toByte() && bytes[i + 1] == 0xD8.toByte() && bytes[i + 2] == 0xFF.toByte()) {
+                    val start = i
+                    var end = -1
+                    // Look for JPEG EOI marker: FF D9
+                    var j = start + 3
+                    while (j < bytes.size - 1 && (j - start) < 5_000_000) {
+                        if (bytes[j] == 0xFF.toByte() && bytes[j + 1] == 0xD9.toByte()) {
+                            end = j + 2
+                            break
+                        }
+                        j++
+                    }
+                    if (end > start && end <= bytes.size && (end - start) > 500) {
+                        images.add(bytes.copyOfRange(start, end))
+                        i = end
+                        continue
+                    }
+                }
+
+                i++
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return images
     }
 
     private fun getUtf16RunLength(bytes: ByteArray, startOffset: Int): Int {
