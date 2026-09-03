@@ -175,6 +175,17 @@ fun FavouritesScreen(
     }
 
     selectedInfoDoc?.let { doc ->
-        DocumentInfoDialog(document = doc, onDismiss = { selectedInfoDoc = null })
+        DocumentInfoDialog(
+            document = doc,
+            onDismiss = { selectedInfoDoc = null },
+            onRename = { newName ->
+                viewModel.renameDocument(doc.uri, newName)
+                selectedInfoDoc = null
+            },
+            onDelete = {
+                viewModel.deleteDocument(doc)
+                selectedInfoDoc = null
+            }
+        )
     }
 }

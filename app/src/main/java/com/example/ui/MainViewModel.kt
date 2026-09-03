@@ -142,6 +142,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteDocumentByUri(uriStr: String) {
+        viewModelScope.launch {
+            repository.deleteDocument(uriStr)
+            val uri = Uri.parse(uriStr)
+            if (uri.scheme == "file") {
+                val f = File(uri.path ?: "")
+                if (f.exists()) f.delete()
+            }
+        }
+    }
+
     fun restoreSampleDocuments() {
         viewModelScope.launch {
             repository.reloadSamples()
@@ -152,6 +163,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val doc = repository.indexPickedDocument(uri)
             onIndexed(doc)
+        }
+    }
+
+    fun renameDocument(uriStr: String, newName: String, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val result = repository.renameDocument(uriStr, newName)
+            onComplete?.invoke(result.isSuccess)
+        }
+    }
+
+    fun createNewTextDocument(fileName: String, content: String = "", onCreated: (DocumentEntity) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.createNewTextDocument(fileName, content)
+            if (result.isSuccess) {
+                onCreated(result.getOrThrow())
+            }
         }
     }
 

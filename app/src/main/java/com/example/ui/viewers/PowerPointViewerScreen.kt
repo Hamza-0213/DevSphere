@@ -38,12 +38,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Image
@@ -362,7 +361,7 @@ fun PowerPointViewerScreen(
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Icon(
-                                                        Icons.Filled.FormatListBulleted,
+                                                        Icons.AutoMirrored.Filled.FormatListBulleted,
                                                         contentDescription = "Outline View",
                                                         modifier = Modifier.size(14.dp),
                                                         tint = if (viewMode == PptViewMode.OUTLINE) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant

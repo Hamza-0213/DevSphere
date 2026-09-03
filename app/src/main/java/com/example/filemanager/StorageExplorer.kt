@@ -107,7 +107,7 @@ class StorageExplorer(
 
         // 4. Secondary SD Cards / Removable Volumes
         try {
-            val extDirs = ContextCompat.getExternalFilesDirs(context, null)
+            val extDirs = context.getExternalFilesDirs(null)
             for (dir in extDirs) {
                 if (dir != null && dir.exists() && !dir.absolutePath.contains(context.packageName)) {
                     roots.add(

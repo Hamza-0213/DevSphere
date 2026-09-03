@@ -62,6 +62,15 @@ interface DocumentDao {
     @Query("UPDATE documents SET pageCount = :pageCount WHERE uri = :uri")
     suspend fun updatePageCount(uri: String, pageCount: Int)
 
+    @Query("UPDATE documents SET sizeBytes = :sizeBytes, lastModified = :lastModified WHERE uri = :uri")
+    suspend fun updateDocumentStats(uri: String, sizeBytes: Long, lastModified: Long)
+
+    @Query("UPDATE documents SET displayName = :newDisplayName WHERE uri = :uri")
+    suspend fun updateDisplayName(uri: String, newDisplayName: String)
+
+    @Query("UPDATE documents SET uri = :newUri, displayName = :newDisplayName, lastModified = :lastModified WHERE uri = :oldUri")
+    suspend fun updateDocumentUriAndName(oldUri: String, newUri: String, newDisplayName: String, lastModified: Long)
+
     @Query("DELETE FROM documents WHERE uri = :uri")
     suspend fun deleteDocumentByUri(uri: String)
 

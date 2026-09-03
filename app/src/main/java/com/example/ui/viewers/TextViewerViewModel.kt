@@ -46,6 +46,20 @@ class TextViewerViewModel(application: Application) : AndroidViewModel(applicati
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _isEditMode = MutableStateFlow(false)
+    val isEditMode: StateFlow<Boolean> = _isEditMode.asStateFlow()
+
+    private val _editedText = MutableStateFlow("")
+    val editedText: StateFlow<String> = _editedText.asStateFlow()
+
+    private val _hasUnsavedChanges = MutableStateFlow(false)
+    val hasUnsavedChanges: StateFlow<Boolean> = _hasUnsavedChanges.asStateFlow()
+
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    private var originalContent: String = ""
+
     init {
         viewModelScope.launch {
             preferences.userSettingsFlow.collect { settings ->
@@ -69,9 +83,91 @@ class TextViewerViewModel(application: Application) : AndroidViewModel(applicati
             repository.recordDocumentOpened(uriString)
             val result = textEngine.parseText(uri)
             if (result.isSuccess) {
-                _uiState.value = TextUiState.Success(result.getOrThrow())
+                val doc = result.getOrThrow()
+                originalContent = doc.content
+                if (!_hasUnsavedChanges.value) {
+                    _editedText.value = doc.content
+                }
+                _uiState.value = TextUiState.Success(doc)
             } else {
                 _uiState.value = TextUiState.Error(result.exceptionOrNull()?.message ?: "Unable to read text document")
+            }
+        }
+    }
+
+    fun toggleEditMode() {
+        if (!_isEditMode.value) {
+            // Entering edit mode
+            if (!_hasUnsavedChanges.value) {
+                _editedText.value = originalContent
+            }
+            _isEditMode.value = true
+        } else {
+            // Exiting edit mode
+            _isEditMode.value = false
+        }
+    }
+
+    fun setEditMode(enabled: Boolean) {
+        _isEditMode.value = enabled
+    }
+
+    fun onTextChanged(newText: String) {
+        _editedText.value = newText
+        _hasUnsavedChanges.value = (newText != originalContent)
+    }
+
+    fun revertChanges() {
+        _editedText.value = originalContent
+        _hasUnsavedChanges.value = false
+    }
+
+    fun insertSnippet(snippet: String) {
+        val current = _editedText.value
+        val updated = if (current.isEmpty()) snippet else "$current\n$snippet"
+        onTextChanged(updated)
+    }
+
+    fun replaceAll(find: String, replaceWith: String) {
+        if (find.isEmpty()) return
+        val current = _editedText.value
+        val updated = current.replace(find, replaceWith)
+        onTextChanged(updated)
+    }
+
+    fun saveChanges(uriString: String, onResult: (Boolean, String) -> Unit) {
+        val uri = Uri.parse(uriString)
+        val textToSave = _editedText.value
+        _isSaving.value = true
+
+        viewModelScope.launch {
+            val saveResult = textEngine.saveText(uri, textToSave)
+            if (saveResult.isSuccess) {
+                originalContent = textToSave
+                _hasUnsavedChanges.value = false
+                val bytes = textToSave.toByteArray(java.nio.charset.StandardCharsets.UTF_8).size.toLong()
+                repository.updateDocumentStats(uriString, bytes)
+                // Reload state
+                val lines = textToSave.split("\n").map { it.trimEnd('\r') }
+                val wordCount = textToSave.split("\\s+".toRegex()).count { it.isNotBlank() }
+                val currentDoc = (_uiState.value as? TextUiState.Success)?.document
+                if (currentDoc != null) {
+                    _uiState.value = TextUiState.Success(
+                        currentDoc.copy(
+                            content = textToSave,
+                            lines = lines,
+                            lineCount = lines.size,
+                            characterCount = textToSave.length,
+                            wordCount = wordCount
+                        )
+                    )
+                }
+                _isSaving.value = false
+                onResult(true, "Document saved successfully ($bytes bytes)")
+            } else {
+                _isSaving.value = false
+                val errorMsg = saveResult.exceptionOrNull()?.localizedMessage ?: "Failed to save document"
+                onResult(false, errorMsg)
             }
         }
     }

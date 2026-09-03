@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.DropdownMenu
@@ -181,7 +181,7 @@ fun DocumentSortIconButton(
             modifier = Modifier.testTag("btn_sort_menu")
         ) {
             Icon(
-                imageVector = Icons.Filled.Sort,
+                imageVector = Icons.AutoMirrored.Filled.Sort,
                 contentDescription = "Sort Documents",
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -230,7 +230,7 @@ fun DocumentSortChip(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Filled.Sort,
+                    imageVector = Icons.AutoMirrored.Filled.Sort,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.primary

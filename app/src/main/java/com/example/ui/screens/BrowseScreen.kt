@@ -4,8 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -59,6 +60,7 @@ import com.example.ui.MainViewModel
 import com.example.ui.components.DocumentSearchBar
 import com.example.ui.components.DocumentSortIconButton
 import com.example.ui.components.EmptyStateView
+import com.example.ui.components.FileInfoDialog
 import com.example.ui.components.formatFileSize
 import java.io.File
 
@@ -72,6 +74,7 @@ fun BrowseScreen(
     val settings by viewModel.userSettings.collectAsState()
     val isLoading by viewModel.isBrowserLoading.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    var selectedFileInfo by remember { mutableStateOf<FileItem?>(null) }
 
     val sortedItems = remember(browserItems, settings, currentPath, searchQuery) {
         val base = if (currentPath != null) {
@@ -121,7 +124,7 @@ fun BrowseScreen(
                                 modifier = Modifier.testTag("btn_browse_back")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.ArrowBack,
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Up",
                                     tint = MaterialTheme.colorScheme.primary
                                 )
@@ -221,6 +224,9 @@ fun BrowseScreen(
                                     val uriStr = item.uri?.toString() ?: Uri.fromFile(item.file).toString()
                                     onOpenFile(uriStr, item.name)
                                 }
+                            },
+                            onLongClick = {
+                                selectedFileInfo = item
                             }
                         )
                     }
@@ -228,18 +234,46 @@ fun BrowseScreen(
             }
         }
     }
+
+    selectedFileInfo?.let { fileInfo ->
+        FileInfoDialog(
+            fileItem = fileInfo,
+            onDismiss = { selectedFileInfo = null },
+            onDelete = {
+                val file = fileInfo.file
+                if (file != null && file.exists()) {
+                    if (file.isDirectory) {
+                        file.deleteRecursively()
+                    } else {
+                        file.delete()
+                    }
+                }
+                val uriStr = fileInfo.uri?.toString() ?: (file?.let { Uri.fromFile(it).toString() } ?: "")
+                if (uriStr.isNotBlank()) {
+                    viewModel.deleteDocumentByUri(uriStr)
+                }
+                currentPath?.let { viewModel.navigateToDirectory(it) } ?: viewModel.loadRootBrowserLocations()
+                selectedFileInfo = null
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileItemRow(
     item: FileItem,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .testTag("browser_item_${item.name}"),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(

@@ -1,13 +1,20 @@
 package com.example.document.image
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.media.ExifInterface
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.InputStream
 
 data class ImageMetadata(
@@ -84,6 +91,120 @@ class ImageEngine(private val context: Context) {
             } catch (e: Exception) {
                 // Ignore
             }
+        }
+    }
+
+    suspend fun saveEditedImage(
+        uri: Uri,
+        rotationDegrees: Float,
+        flipH: Boolean,
+        flipV: Boolean,
+        filter: String,
+        brightness: Float = 0f
+    ): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = if (uri.scheme == "file") {
+                FileInputStream(File(uri.path ?: ""))
+            } else {
+                context.contentResolver.openInputStream(uri)
+            } ?: return@withContext Result.failure(Exception("Cannot open source image"))
+
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+
+            if (originalBitmap == null) {
+                return@withContext Result.failure(Exception("Unable to decode source bitmap"))
+            }
+
+            val matrix = Matrix().apply {
+                if (rotationDegrees != 0f) {
+                    postRotate(rotationDegrees)
+                }
+                val sx = if (flipH) -1f else 1f
+                val sy = if (flipV) -1f else 1f
+                if (flipH || flipV) {
+                    postScale(sx, sy)
+                }
+            }
+
+            val transformedBitmap = Bitmap.createBitmap(
+                originalBitmap,
+                0,
+                0,
+                originalBitmap.width,
+                originalBitmap.height,
+                matrix,
+                true
+            )
+
+            val finalBitmap = if (filter != "NORMAL" || brightness != 0f) {
+                val resultBitmap = Bitmap.createBitmap(
+                    transformedBitmap.width,
+                    transformedBitmap.height,
+                    Bitmap.Config.ARGB_8888
+                )
+                val canvas = Canvas(resultBitmap)
+                val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+                val cm = ColorMatrix()
+                when (filter) {
+                    "GRAYSCALE" -> cm.setSaturation(0f)
+                    "SEPIA" -> {
+                        val sepiaMatrix = ColorMatrix().apply {
+                            setScale(1f, 0.95f, 0.82f, 1.0f)
+                        }
+                        cm.set(sepiaMatrix)
+                    }
+                    "INVERT" -> {
+                        cm.set(floatArrayOf(
+                            -1f, 0f, 0f, 0f, 255f,
+                            0f, -1f, 0f, 0f, 255f,
+                            0f, 0f, -1f, 0f, 255f,
+                            0f, 0f, 0f, 1f, 0f
+                        ))
+                    }
+                    "WARM" -> {
+                        cm.set(floatArrayOf(
+                            1.15f, 0f, 0f, 0f, 0f,
+                            0f, 1.05f, 0f, 0f, 0f,
+                            0f, 0f, 0.9f, 0f, 0f,
+                            0f, 0f, 0f, 1f, 0f
+                        ))
+                    }
+                }
+
+                if (brightness != 0f) {
+                    val brightMatrix = ColorMatrix().apply {
+                        set(floatArrayOf(
+                            1f, 0f, 0f, 0f, brightness,
+                            0f, 1f, 0f, 0f, brightness,
+                            0f, 0f, 1f, 0f, brightness,
+                            0f, 0f, 0f, 1f, 0f
+                        ))
+                    }
+                    cm.postConcat(brightMatrix)
+                }
+
+                paint.colorFilter = ColorMatrixColorFilter(cm)
+                canvas.drawBitmap(transformedBitmap, 0f, 0f, paint)
+                resultBitmap
+            } else {
+                transformedBitmap
+            }
+
+            val imagesDir = File(context.filesDir, "edited_images").apply { mkdirs() }
+            val fileName = "DocSphere_Edit_${System.currentTimeMillis()}.jpg"
+            val destFile = File(imagesDir, fileName)
+
+            FileOutputStream(destFile).use { out ->
+                finalBitmap.compress(Bitmap.CompressFormat.JPEG, 92, out)
+                out.flush()
+            }
+
+            Result.success(destFile)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
         }
     }
 }

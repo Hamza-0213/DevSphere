@@ -1,13 +1,13 @@
 package com.example.domain.model
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Slideshow
-import androidx.compose.material.icons.filled.Article
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.ui.theme.ColorExcel
@@ -56,7 +56,7 @@ enum class DocumentType(
     TEXT(
         displayName = "Text Document",
         primaryColor = ColorText,
-        icon = Icons.Filled.Article,
+        icon = Icons.AutoMirrored.Filled.Article,
         mimeType = "text/plain",
         supportedExtensions = setOf("txt", "log", "json", "xml", "md", "html", "htm", "css", "js", "ts", "kt", "java", "py", "sh", "yaml", "yml", "ini", "conf")
     ),
@@ -70,7 +70,7 @@ enum class DocumentType(
     UNKNOWN(
         displayName = "Document",
         primaryColor = ColorOther,
-        icon = Icons.Filled.InsertDriveFile,
+        icon = Icons.AutoMirrored.Filled.InsertDriveFile,
         mimeType = "application/octet-stream",
         supportedExtensions = emptySet()
     );
@@ -79,7 +79,7 @@ enum class DocumentType(
         fun fromExtension(extension: String?): DocumentType {
             if (extension.isNullOrBlank()) return UNKNOWN
             val normalized = extension.lowercase().trim().removePrefix(".")
-            return values().firstOrNull { it.supportedExtensions.contains(normalized) } ?: UNKNOWN
+            return entries.firstOrNull { it.supportedExtensions.contains(normalized) } ?: UNKNOWN
         }
 
         fun fromFileName(fileName: String?): DocumentType {

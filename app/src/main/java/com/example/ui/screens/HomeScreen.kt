@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.res.painterResource
 import com.example.R
@@ -31,18 +32,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -93,6 +100,9 @@ fun HomeScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showSortDialog by remember { mutableStateOf(false) }
     var selectedInfoDoc by remember { mutableStateOf<DocumentEntity?>(null) }
+    var showNewDocDialog by remember { mutableStateOf(false) }
+    var newDocTitle by remember { mutableStateOf("") }
+    var newDocContent by remember { mutableStateOf("") }
 
     // SAF Document Picker launcher
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -130,28 +140,53 @@ fun HomeScreen(
 
     Scaffold(
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    filePickerLauncher.launch(
-                        arrayOf(
-                            "application/pdf",
-                            "application/msword",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            "application/vnd.ms-excel",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            "application/vnd.ms-powerpoint",
-                            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                            "text/*",
-                            "image/*"
-                        )
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Quick Action: Create New Text / Note Document
+                FloatingActionButton(
+                    onClick = {
+                        val num = (allDocs.count { it.toDocumentType() == DocumentType.TEXT } + 1)
+                        newDocTitle = "Note $num.txt"
+                        newDocContent = ""
+                        showNewDocDialog = true
+                    },
+                    modifier = Modifier.testTag("fab_create_note"),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.EditNote,
+                        contentDescription = "Create New Note",
+                        modifier = Modifier.size(24.dp)
                     )
-                },
-                icon = { Icon(Icons.Filled.Add, contentDescription = "Open Document") },
-                text = { Text("Open File") },
-                modifier = Modifier.testTag("fab_open_document"),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            )
+                }
+
+                // Primary Action: Open File from Storage
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        filePickerLauncher.launch(
+                            arrayOf(
+                                "application/pdf",
+                                "application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.ms-excel",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-powerpoint",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "text/*",
+                                "image/*"
+                            )
+                        )
+                    },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = "Open Document") },
+                    text = { Text("Open File") },
+                    modifier = Modifier.testTag("fab_open_document"),
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     ) { paddingValues ->
         LazyColumn(
@@ -174,26 +209,65 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(
-                                painter = painterResource(id = R.drawable.img_universal_logo_1787205881434),
-                                contentDescription = "Universal Document Viewer Logo",
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                                shadowElevation = 3.dp
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.devionics_docsphere_logo_1788445831963),
+                                    contentDescription = "DocSphere Logo - Devionics Labs",
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "DocSphere",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 20.sp,
+                                            letterSpacing = (-0.3).sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    )
+                                }
                                 Text(
-                                    text = "DocSphere",
-                                    style = MaterialTheme.typography.headlineMedium.copy(
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 22.sp
+                                    text = "Devionics Labs",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 11.sp
                                     ),
                                     color = MaterialTheme.colorScheme.primary
                                 )
+                            }
+                        }
+
+                        // Offline Security Capsule
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            border = androidx.compose.foundation.BorderStroke(0.8.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(androidx.compose.ui.graphics.Color(0xFF10B981))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Universal Document Viewer",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    text = "OFFLINE",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -399,7 +473,97 @@ fun HomeScreen(
     selectedInfoDoc?.let { doc ->
         DocumentInfoDialog(
             document = doc,
-            onDismiss = { selectedInfoDoc = null }
+            onDismiss = { selectedInfoDoc = null },
+            onRename = { newName ->
+                viewModel.renameDocument(doc.uri, newName)
+                selectedInfoDoc = null
+            },
+            onDelete = {
+                viewModel.deleteDocument(doc)
+                selectedInfoDoc = null
+            }
+        )
+    }
+
+    // Create New Document Dialog
+    if (showNewDocDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewDocDialog = false },
+            modifier = Modifier.testTag("dialog_create_new_doc"),
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.EditNote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Create New Note", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Create a plain text note or markdown file to edit directly inside the app.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = newDocTitle,
+                        onValueChange = { newDocTitle = it },
+                        label = { Text("File Name") },
+                        placeholder = { Text("e.g., MeetingNotes.txt") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_new_doc_title")
+                    )
+                    OutlinedTextField(
+                        value = newDocContent,
+                        onValueChange = { newDocContent = it },
+                        label = { Text("Initial Content (Optional)") },
+                        placeholder = { Text("Start typing note...") },
+                        maxLines = 4,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_new_doc_content")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val trimmedTitle = newDocTitle.trim()
+                        if (trimmedTitle.isNotBlank()) {
+                            val finalName = if (!trimmedTitle.contains(".")) "$trimmedTitle.txt" else trimmedTitle
+                            viewModel.createNewTextDocument(finalName, newDocContent) { newDoc ->
+                                showNewDocDialog = false
+                                onDocumentClick(newDoc)
+                            }
+                        }
+                    },
+                    modifier = Modifier.testTag("btn_confirm_create_doc")
+                ) {
+                    Text("Create & Edit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewDocDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(22.dp)
         )
     }
 }

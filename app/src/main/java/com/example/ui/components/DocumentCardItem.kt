@@ -3,8 +3,9 @@ package com.example.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +56,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DocumentCardItem(
     document: DocumentEntity,
@@ -64,6 +66,7 @@ fun DocumentCardItem(
     onPrint: () -> Unit,
     onInfo: () -> Unit,
     onDelete: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val docType = document.toDocumentType()
@@ -80,7 +83,12 @@ fun DocumentCardItem(
             .fillMaxWidth()
             .testTag("document_item_${document.id}")
             .clip(RoundedCornerShape(14.dp))
-            .clickable { onClick() },
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    if (onLongClick != null) onLongClick() else onInfo()
+                }
+            ),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface

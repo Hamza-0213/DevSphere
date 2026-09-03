@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.SearchOff
@@ -106,7 +106,7 @@ fun SearchScreen(
                             modifier = Modifier.testTag("btn_search_back")
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
@@ -230,6 +230,17 @@ fun SearchScreen(
     }
 
     selectedInfoDoc?.let { doc ->
-        DocumentInfoDialog(document = doc, onDismiss = { selectedInfoDoc = null })
+        DocumentInfoDialog(
+            document = doc,
+            onDismiss = { selectedInfoDoc = null },
+            onRename = { newName ->
+                viewModel.renameDocument(doc.uri, newName)
+                selectedInfoDoc = null
+            },
+            onDelete = {
+                viewModel.deleteDocument(doc)
+                selectedInfoDoc = null
+            }
+        )
     }
 }

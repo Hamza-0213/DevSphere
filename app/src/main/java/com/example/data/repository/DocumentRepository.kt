@@ -88,6 +88,100 @@ class DocumentRepository(
         documentDao.deleteDocumentByUri(uri)
     }
 
+    suspend fun updateDocumentStats(uri: String, sizeBytes: Long) = withContext(Dispatchers.IO) {
+        documentDao.updateDocumentStats(uri, sizeBytes, System.currentTimeMillis())
+    }
+
+    suspend fun renameDocument(oldUriStr: String, newName: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val oldDoc = documentDao.getDocumentByUriDirect(oldUriStr)
+                ?: return@withContext Result.failure(Exception("Document not found"))
+
+            val cleanNewName = newName.trim()
+            if (cleanNewName.isBlank()) {
+                return@withContext Result.failure(Exception("Name cannot be empty"))
+            }
+
+            val oldUri = Uri.parse(oldUriStr)
+            if (oldUri.scheme == "file" || oldUriStr.startsWith("/")) {
+                val oldFile = if (oldUriStr.startsWith("/")) File(oldUriStr) else File(oldUri.path ?: "")
+                if (oldFile.exists()) {
+                    val parent = oldFile.parentFile ?: context.filesDir
+                    val newFile = File(parent, cleanNewName)
+                    val renamed = oldFile.renameTo(newFile)
+                    if (renamed) {
+                        val newUriStr = Uri.fromFile(newFile).toString()
+                        documentDao.updateDocumentUriAndName(
+                            oldUri = oldUriStr,
+                            newUri = newUriStr,
+                            newDisplayName = cleanNewName,
+                            lastModified = System.currentTimeMillis()
+                        )
+                        return@withContext Result.success(newUriStr)
+                    }
+                }
+            }
+
+            // Fallback for SAF URIs or virtual documents: update display name in Room
+            documentDao.updateDisplayName(oldUriStr, cleanNewName)
+            Result.success(oldUriStr)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createNewTextDocument(fileName: String, content: String = ""): Result<DocumentEntity> = withContext(Dispatchers.IO) {
+        try {
+            val docsDir = File(context.filesDir, "documents").apply { mkdirs() }
+            val cleanName = if (fileName.endsWith(".txt", ignoreCase = true)) fileName else "$fileName.txt"
+            val file = File(docsDir, cleanName)
+            file.writeText(content, java.nio.charset.StandardCharsets.UTF_8)
+
+            val uriStr = Uri.fromFile(file).toString()
+            val entity = DocumentEntity(
+                uri = uriStr,
+                displayName = cleanName,
+                extension = "txt",
+                fileType = DocumentType.TEXT.name,
+                sizeBytes = file.length(),
+                lastModified = file.lastModified(),
+                lastOpenedTimestamp = System.currentTimeMillis(),
+                isFavourite = false,
+                lastReadingPosition = 0,
+                readingProgressPercent = 0f,
+                pageCount = 1,
+                isSample = false
+            )
+            documentDao.insertDocument(entity)
+            Result.success(entity)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun indexLocalFile(file: File): DocumentEntity = withContext(Dispatchers.IO) {
+        val extension = file.extension.lowercase()
+        val docType = DocumentType.fromExtension(extension)
+        val entity = DocumentEntity(
+            uri = Uri.fromFile(file).toString(),
+            displayName = file.name,
+            extension = extension,
+            fileType = docType.name,
+            sizeBytes = file.length(),
+            lastModified = file.lastModified(),
+            lastOpenedTimestamp = System.currentTimeMillis(),
+            isFavourite = false,
+            lastReadingPosition = 0,
+            readingProgressPercent = 0f,
+            pageCount = 1,
+            isSample = false
+        )
+        documentDao.insertDocument(entity)
+        entity
+    }
+
     // Bookmarks
     fun getBookmarksForDocument(documentUri: String): Flow<List<BookmarkEntity>> {
         return bookmarkDao.getBookmarksForDocument(documentUri)

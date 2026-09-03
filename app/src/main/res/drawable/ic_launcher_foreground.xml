@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="76dp"
-        android:height="76dp"
-        android:drawable="@drawable/img_universal_logo_1787205881434"
+        android:width="66dp"
+        android:height="66dp"
+        android:drawable="@drawable/devionics_docsphere_logo_1788445831963"
         android:gravity="center" />
 </layer-list>

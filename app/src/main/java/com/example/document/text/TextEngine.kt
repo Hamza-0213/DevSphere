@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets
 
 data class TextDocument(
     val title: String,
+    val content: String,
     val lines: List<String>,
     val lineCount: Int,
     val characterCount: Int,
@@ -51,6 +52,7 @@ class TextEngine(private val context: Context) {
             Result.success(
                 TextDocument(
                     title = fileName,
+                    content = fullText,
                     lines = lines,
                     lineCount = lines.size,
                     characterCount = charCount,
@@ -68,6 +70,48 @@ class TextEngine(private val context: Context) {
             } catch (e: Exception) {
                 // Ignore
             }
+        }
+    }
+
+    suspend fun saveText(uri: Uri, text: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val outputStream = if (uri.scheme == "file") {
+                val f = File(uri.path ?: "")
+                if (!f.exists()) {
+                    f.parentFile?.mkdirs()
+                    f.createNewFile()
+                }
+                java.io.FileOutputStream(f)
+            } else {
+                context.contentResolver.openOutputStream(uri, "wt")
+                    ?: context.contentResolver.openOutputStream(uri)
+            }
+
+            if (outputStream == null) {
+                return@withContext Result.failure(Exception("Cannot open file for writing"))
+            }
+
+            outputStream.use { os ->
+                os.write(text.toByteArray(StandardCharsets.UTF_8))
+                os.flush()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun createNewTextFile(fileName: String, initialContent: String): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            val docsDir = File(context.filesDir, "documents").apply { mkdirs() }
+            val cleanName = if (fileName.endsWith(".txt", ignoreCase = true)) fileName else "$fileName.txt"
+            val file = File(docsDir, cleanName)
+            file.writeText(initialContent, StandardCharsets.UTF_8)
+            Result.success(file)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
         }
     }
 

@@ -29,7 +29,7 @@ abstract class DocSphereDatabase : RoomDatabase() {
                     DocSphereDatabase::class.java,
                     "docsphere_database"
                 )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

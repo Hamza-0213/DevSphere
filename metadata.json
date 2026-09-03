@@ -1,6 +1,6 @@
 {
   "name": "DocSphere",
-  "description": "Offline Universal Document Viewer for Android",
+  "description": "Offline Universal Document Viewer powered by Devionics Labs",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
