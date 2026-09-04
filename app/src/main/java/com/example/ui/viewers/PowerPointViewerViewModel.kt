@@ -59,6 +59,67 @@ class PowerPointViewerViewModel(application: Application) : AndroidViewModel(app
     private val _showSpeakerNotes = MutableStateFlow(true)
     val showSpeakerNotes: StateFlow<Boolean> = _showSpeakerNotes.asStateFlow()
 
+    // Slide Sorter / Grid view mode
+    private val _isSlideSorterOpen = MutableStateFlow(false)
+    val isSlideSorterOpen: StateFlow<Boolean> = _isSlideSorterOpen.asStateFlow()
+
+    // Presenter Timer (in seconds) & running state
+    private val _isPresenterTimerRunning = MutableStateFlow(false)
+    val isPresenterTimerRunning: StateFlow<Boolean> = _isPresenterTimerRunning.asStateFlow()
+    private val _presenterElapsedSeconds = MutableStateFlow(0)
+    val presenterElapsedSeconds: StateFlow<Int> = _presenterElapsedSeconds.asStateFlow()
+
+    // Auto-advance slideshow
+    private val _isAutoPlayRunning = MutableStateFlow(false)
+    val isAutoPlayRunning: StateFlow<Boolean> = _isAutoPlayRunning.asStateFlow()
+    private val _autoPlayIntervalSeconds = MutableStateFlow(4)
+    val autoPlayIntervalSeconds: StateFlow<Int> = _autoPlayIntervalSeconds.asStateFlow()
+
+    // PowerPoint Drawing & Presenter Tools (Pen, Highlighter, Laser pointer)
+    private val _activeToolMode = MutableStateFlow(PptToolMode.NONE)
+    val activeToolMode: StateFlow<PptToolMode> = _activeToolMode.asStateFlow()
+
+    private val _penColor = MutableStateFlow(Color(0xFFEF4444)) // Default red pen
+    val penColor: StateFlow<Color> = _penColor.asStateFlow()
+
+    // Slide Index -> List of DrawnStrokes
+    private val _slideAnnotations = MutableStateFlow<Map<Int, List<DrawnStroke>>>(emptyMap())
+    val slideAnnotations: StateFlow<Map<Int, List<DrawnStroke>>> = _slideAnnotations.asStateFlow()
+
+    // Laser pointer position (ratio 0..1, null when not pressing/moving)
+    private val _laserPosition = MutableStateFlow<Pair<Float, Float>?>(null)
+    val laserPosition: StateFlow<Pair<Float, Float>?> = _laserPosition.asStateFlow()
+
+    // Transition effect type: "FADE", "SLIDE", "ZOOM", "NONE"
+    private val _transitionStyle = MutableStateFlow("SLIDE")
+    val transitionStyle: StateFlow<String> = _transitionStyle.asStateFlow()
+
+    init {
+        // Coroutine for Presenter Timer and Auto-advance
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                if (_isPresenterTimerRunning.value) {
+                    _presenterElapsedSeconds.value++
+                }
+                if (_isAutoPlayRunning.value) {
+                    val currentSec = _presenterElapsedSeconds.value
+                    if (currentSec > 0 && currentSec % _autoPlayIntervalSeconds.value == 0) {
+                        val state = _uiState.value as? PptUiState.Success
+                        if (state != null) {
+                            if (_currentSlideIndex.value < state.presentation.slides.size - 1) {
+                                nextSlide()
+                            } else {
+                                // Loop or stop
+                                goToSlide(0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     val matchingSlideIndices: StateFlow<List<Int>> = combine(_uiState, _searchQuery) { state, query ->
         if (state !is PptUiState.Success || query.isBlank()) {
             emptyList()
@@ -181,5 +242,81 @@ class PowerPointViewerViewModel(application: Application) : AndroidViewModel(app
 
     fun resetZoom() {
         _fontSizeScale.value = 1.0f
+    }
+
+    // Slide Sorter / Grid view
+    fun toggleSlideSorter() {
+        _isSlideSorterOpen.value = !_isSlideSorterOpen.value
+    }
+
+    fun setSlideSorterOpen(open: Boolean) {
+        _isSlideSorterOpen.value = open
+    }
+
+    // Presenter Timer
+    fun togglePresenterTimer() {
+        _isPresenterTimerRunning.value = !_isPresenterTimerRunning.value
+    }
+
+    fun resetPresenterTimer() {
+        _presenterElapsedSeconds.value = 0
+        _isPresenterTimerRunning.value = false
+    }
+
+    // Auto Play Slideshow
+    fun toggleAutoPlay() {
+        _isAutoPlayRunning.value = !_isAutoPlayRunning.value
+        if (_isAutoPlayRunning.value) {
+            _isPresenterTimerRunning.value = true
+        }
+    }
+
+    fun setAutoPlayInterval(seconds: Int) {
+        _autoPlayIntervalSeconds.value = seconds
+    }
+
+    // Transition style
+    fun setTransitionStyle(style: String) {
+        _transitionStyle.value = style
+    }
+
+    // Annotation and Drawing tools
+    fun setToolMode(mode: PptToolMode) {
+        _activeToolMode.value = mode
+        if (mode != PptToolMode.LASER_POINTER) {
+            _laserPosition.value = null
+        }
+    }
+
+    fun setPenColor(color: Color) {
+        _penColor.value = color
+    }
+
+    fun addStroke(slideIndex: Int, stroke: DrawnStroke) {
+        val currentMap = _slideAnnotations.value.toMutableMap()
+        val list = currentMap[slideIndex]?.toMutableList() ?: mutableListOf()
+        list.add(stroke)
+        currentMap[slideIndex] = list
+        _slideAnnotations.value = currentMap
+    }
+
+    fun clearAnnotations(slideIndex: Int) {
+        val currentMap = _slideAnnotations.value.toMutableMap()
+        currentMap.remove(slideIndex)
+        _slideAnnotations.value = currentMap
+    }
+
+    fun undoLastStroke(slideIndex: Int) {
+        val currentMap = _slideAnnotations.value.toMutableMap()
+        val list = currentMap[slideIndex]?.toMutableList() ?: return
+        if (list.isNotEmpty()) {
+            list.removeAt(list.size - 1)
+            currentMap[slideIndex] = list
+            _slideAnnotations.value = currentMap
+        }
+    }
+
+    fun setLaserPosition(pos: Pair<Float, Float>?) {
+        _laserPosition.value = pos
     }
 }

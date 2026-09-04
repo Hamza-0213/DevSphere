@@ -43,6 +43,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Image
@@ -52,6 +54,7 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
@@ -130,6 +133,19 @@ fun PowerPointViewerScreen(
     val fontScale by viewModel.fontSizeScale.collectAsState()
     val showNotes by viewModel.showSpeakerNotes.collectAsState()
 
+    // PowerPoint Enhancement States
+    val isSlideSorterOpen by viewModel.isSlideSorterOpen.collectAsState()
+    val activeToolMode by viewModel.activeToolMode.collectAsState()
+    val activePenColor by viewModel.activePenColor.collectAsState()
+    val slideAnnotations by viewModel.slideAnnotations.collectAsState()
+    val laserPointerPosition by viewModel.laserPointerPosition.collectAsState()
+    val presenterElapsedSeconds by viewModel.presenterElapsedSeconds.collectAsState()
+    val isPresenterTimerRunning by viewModel.isPresenterTimerRunning.collectAsState()
+    val isAutoPlayRunning by viewModel.isAutoPlayRunning.collectAsState()
+    val autoPlayIntervalSeconds by viewModel.autoPlayIntervalSeconds.collectAsState()
+    val slideTransitionStyle by viewModel.slideTransitionStyle.collectAsState()
+
+    var showPresentationSettings by remember { mutableStateOf(false) }
     var showControlsInFullscreen by remember { mutableStateOf(true) }
 
     LaunchedEffect(uriString) {
@@ -163,6 +179,24 @@ fun PowerPointViewerScreen(
                         onBack = onBack,
                         backTestTag = "btn_ppt_back"
                     ) {
+                        // Slide Sorter Grid View
+                        IconButton(onClick = { viewModel.toggleSlideSorter() }) {
+                            Icon(
+                                Icons.Filled.Dashboard,
+                                contentDescription = "Slide Sorter",
+                                tint = if (isSlideSorterOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        // Presentation Options / Timer / Transitions
+                        IconButton(onClick = { showPresentationSettings = true }) {
+                            Icon(
+                                Icons.Filled.Tune,
+                                contentDescription = "Slide Show Options",
+                                tint = if (isAutoPlayRunning || isPresenterTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
                         // Search button
                         IconButton(onClick = { viewModel.toggleSearch() }) {
                             Icon(
@@ -414,6 +448,26 @@ fun PowerPointViewerScreen(
                                             )
                                         }
                                     }
+
+                                    // Quick Draw Pen Toggle
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = {
+                                            if (activeToolMode == PptToolMode.NONE) {
+                                                viewModel.setToolMode(PptToolMode.PEN)
+                                            } else {
+                                                viewModel.setToolMode(PptToolMode.NONE)
+                                            }
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Edit,
+                                            contentDescription = "Drawing Tools",
+                                            tint = if (activeToolMode != PptToolMode.NONE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -447,8 +501,8 @@ fun PowerPointViewerScreen(
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .padding(if (isFullscreen) 8.dp else 12.dp)
-                                .pointerInput(pptZoomScale) {
-                                    if (pptZoomScale <= 1.05f) {
+                                .pointerInput(pptZoomScale, activeToolMode) {
+                                    if (activeToolMode == PptToolMode.NONE && pptZoomScale <= 1.05f) {
                                         var totalDragX = 0f
                                         detectHorizontalDragGestures(
                                             onHorizontalDrag = { change, dragAmount ->
@@ -470,37 +524,56 @@ fun PowerPointViewerScreen(
                                     }
                                 }
                                 .clickable {
-                                    if (isFullscreen) {
+                                    if (isFullscreen && activeToolMode == PptToolMode.NONE) {
                                         showControlsInFullscreen = !showControlsInFullscreen
                                     }
                                 },
                             contentAlignment = Alignment.Center
                         ) {
                             if (viewMode == PptViewMode.SLIDE_CANVAS) {
-                                ZoomableBox(
-                                    modifier = Modifier.fillMaxSize(),
-                                    maxScale = 5f,
-                                    minScale = 1f,
-                                    showControls = true,
-                                    isDarkOverlay = isFullscreen,
-                                    onZoomChanged = { pptZoomScale = it }
-                                ) { scale, offsetX, offsetY ->
-                                    DesignedSlideCanvas(
-                                        slide = currentSlide,
-                                        presentation = pres,
-                                        totalSlides = slides.size,
-                                        isFullscreen = isFullscreen,
-                                        fontScale = fontScale,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .align(Alignment.Center)
-                                            .graphicsLayer(
-                                                scaleX = scale,
-                                                scaleY = scale,
-                                                translationX = offsetX,
-                                                translationY = offsetY
-                                            )
-                                    )
+                                SlideTransitionHost(
+                                    slideIndex = currentSlideIndex,
+                                    transitionStyle = slideTransitionStyle,
+                                    modifier = Modifier.fillMaxSize()
+                                ) { activeIdx ->
+                                    val slideToRender = slides.getOrElse(activeIdx) { currentSlide }
+                                    val currentStrokes = slideAnnotations[activeIdx] ?: emptyList()
+
+                                    ZoomableBox(
+                                        modifier = Modifier.fillMaxSize(),
+                                        maxScale = 5f,
+                                        minScale = 1f,
+                                        showControls = true,
+                                        isDarkOverlay = isFullscreen,
+                                        onZoomChanged = { pptZoomScale = it }
+                                    ) { scale, offsetX, offsetY ->
+                                        DesignedSlideCanvas(
+                                            slide = slideToRender,
+                                            presentation = pres,
+                                            totalSlides = slides.size,
+                                            isFullscreen = isFullscreen,
+                                            fontScale = fontScale,
+                                            toolMode = activeToolMode,
+                                            penColor = activePenColor,
+                                            existingStrokes = currentStrokes,
+                                            laserPosition = laserPointerPosition,
+                                            onStrokeFinished = { stroke ->
+                                                viewModel.addStroke(activeIdx, stroke)
+                                            },
+                                            onLaserMoved = { pos ->
+                                                viewModel.setLaserPosition(pos)
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .align(Alignment.Center)
+                                                .graphicsLayer(
+                                                    scaleX = scale,
+                                                    scaleY = scale,
+                                                    translationX = offsetX,
+                                                    translationY = offsetY
+                                                )
+                                        )
+                                    }
                                 }
                             } else {
                                 OutlineNotesView(
@@ -521,7 +594,7 @@ fun PowerPointViewerScreen(
                                     .background(MaterialTheme.colorScheme.surface)
                                     .padding(top = 4.dp, bottom = 8.dp)
                             ) {
-                                // Controls: Prev / Next / Counter
+                                // Controls: Prev / Next / Counter / Drawing tools
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -544,6 +617,23 @@ fun PowerPointViewerScreen(
                                             fontSize = 14.sp,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        if (isPresenterTimerRunning) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = MaterialTheme.colorScheme.primaryContainer
+                                            ) {
+                                                val mins = presenterElapsedSeconds / 60
+                                                val secs = presenterElapsedSeconds % 60
+                                                Text(
+                                                    text = "%02d:%02d".format(mins, secs),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
                                     }
 
                                     IconButton(
@@ -553,6 +643,21 @@ fun PowerPointViewerScreen(
                                     ) {
                                         Icon(Icons.Filled.ChevronRight, contentDescription = "Next Slide")
                                     }
+                                }
+
+                                // In-line presenter drawing toolbar if tool active
+                                if (activeToolMode != PptToolMode.NONE) {
+                                    PresenterToolsBar(
+                                        activeTool = activeToolMode,
+                                        onToolSelected = { viewModel.setToolMode(it) },
+                                        penColor = activePenColor,
+                                        onColorSelected = { viewModel.setPenColor(it) },
+                                        onUndo = { viewModel.undoLastStroke(currentSlideIndex) },
+                                        onClear = { viewModel.clearSlideAnnotations(currentSlideIndex) },
+                                        modifier = Modifier
+                                            .align(Alignment.CenterHorizontally)
+                                            .padding(vertical = 4.dp)
+                                    )
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -579,44 +684,123 @@ fun PowerPointViewerScreen(
                         }
                     }
 
-                    // Fullscreen Floating Presentation Controls
-                    if (isFullscreen && showControlsInFullscreen) {
-                        Row(
+                    // Fullscreen Floating Presentation Controls & Presenter Tools
+                    if (isFullscreen) {
+                        Column(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
-                                .padding(bottom = 20.dp)
-                                .clip(RoundedCornerShape(32.dp))
-                                .background(Color(0xE61E293B))
-                                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(32.dp))
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(bottom = 20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            IconButton(
-                                onClick = { viewModel.previousSlide() },
-                                enabled = currentSlideIndex > 0
-                            ) {
-                                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous", tint = if (currentSlideIndex > 0) Color.White else Color.Gray)
+                            // Presenter Tools Bar in Fullscreen
+                            if (activeToolMode != PptToolMode.NONE || showControlsInFullscreen) {
+                                PresenterToolsBar(
+                                    activeTool = activeToolMode,
+                                    onToolSelected = { viewModel.setToolMode(it) },
+                                    penColor = activePenColor,
+                                    onColorSelected = { viewModel.setPenColor(it) },
+                                    onUndo = { viewModel.undoLastStroke(currentSlideIndex) },
+                                    onClear = { viewModel.clearSlideAnnotations(currentSlideIndex) }
+                                )
                             }
-                            Text(
-                                text = "${currentSlideIndex + 1} / ${slides.size}",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 10.dp)
-                            )
-                            IconButton(
-                                onClick = { viewModel.nextSlide() },
-                                enabled = currentSlideIndex < slides.size - 1
-                            ) {
-                                Icon(Icons.Filled.ChevronRight, contentDescription = "Next", tint = if (currentSlideIndex < slides.size - 1) Color.White else Color.Gray)
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            IconButton(
-                                onClick = { viewModel.toggleFullscreen() }
-                            ) {
-                                Icon(Icons.Filled.FullscreenExit, contentDescription = "Exit Fullscreen", tint = Color.White)
+
+                            if (showControlsInFullscreen) {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(32.dp))
+                                        .background(Color(0xE61E293B))
+                                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(32.dp))
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { viewModel.previousSlide() },
+                                        enabled = currentSlideIndex > 0
+                                    ) {
+                                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous", tint = if (currentSlideIndex > 0) Color.White else Color.Gray)
+                                    }
+                                    Text(
+                                        text = "${currentSlideIndex + 1} / ${slides.size}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                    )
+                                    IconButton(
+                                        onClick = { viewModel.nextSlide() },
+                                        enabled = currentSlideIndex < slides.size - 1
+                                    ) {
+                                        Icon(Icons.Filled.ChevronRight, contentDescription = "Next", tint = if (currentSlideIndex < slides.size - 1) Color.White else Color.Gray)
+                                    }
+
+                                    if (isPresenterTimerRunning) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        val mins = presenterElapsedSeconds / 60
+                                        val secs = presenterElapsedSeconds % 60
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0x443B82F6)
+                                        ) {
+                                            Text(
+                                                text = "%02d:%02d".format(mins, secs),
+                                                color = Color(0xFF60A5FA),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = { showPresentationSettings = true }
+                                    ) {
+                                        Icon(Icons.Filled.Tune, contentDescription = "Show Settings", tint = Color.White)
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.toggleSlideSorter() }
+                                    ) {
+                                        Icon(Icons.Filled.Dashboard, contentDescription = "Slide Sorter", tint = Color.White)
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.toggleFullscreen() }
+                                    ) {
+                                        Icon(Icons.Filled.FullscreenExit, contentDescription = "Exit Fullscreen", tint = Color.White)
+                                    }
+                                }
                             }
                         }
+                    }
+
+                    // Slide Sorter Bottom Sheet (Grid Overview)
+                    if (isSlideSorterOpen) {
+                        SlideSorterBottomSheet(
+                            presentation = pres,
+                            currentSlideIndex = currentSlideIndex,
+                            onSlideSelected = { idx ->
+                                viewModel.goToSlide(idx)
+                                viewModel.toggleSlideSorter()
+                            },
+                            onDismiss = { viewModel.toggleSlideSorter() }
+                        )
+                    }
+
+                    // Presentation Settings Bottom Sheet (Timer, Auto-Play, Transitions)
+                    if (showPresentationSettings) {
+                        PresentationSettingsBottomSheet(
+                            isTimerRunning = isPresenterTimerRunning,
+                            timerElapsedSeconds = presenterElapsedSeconds,
+                            onToggleTimer = { viewModel.togglePresenterTimer() },
+                            onResetTimer = { viewModel.resetPresenterTimer() },
+                            transitionStyle = slideTransitionStyle,
+                            onTransitionSelected = { viewModel.setSlideTransitionStyle(it) },
+                            isAutoPlayRunning = isAutoPlayRunning,
+                            autoPlayInterval = autoPlayIntervalSeconds,
+                            onIntervalChange = { viewModel.setAutoPlayInterval(it) },
+                            onToggleAutoPlay = { viewModel.toggleAutoPlay() },
+                            onDismiss = { showPresentationSettings = false }
+                        )
                     }
                 }
             }
@@ -635,6 +819,12 @@ private fun DesignedSlideCanvas(
     totalSlides: Int,
     isFullscreen: Boolean,
     fontScale: Float = 1.0f,
+    toolMode: PptToolMode = PptToolMode.NONE,
+    penColor: Color = Color(0xFFEF4444),
+    existingStrokes: List<DrawnStroke> = emptyList(),
+    laserPosition: Offset? = null,
+    onStrokeFinished: (DrawnStroke) -> Unit = {},
+    onLaserMoved: (Offset?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val theme = getSlideTheme(slide.themeVariant, slide.backgroundColorHex)
@@ -703,6 +893,18 @@ private fun DesignedSlideCanvas(
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }
+
+            // PowerPoint Drawing & Laser Annotation Overlay
+            SlideAnnotationOverlay(
+                slideIndex = slide.slideNumber - 1,
+                toolMode = toolMode,
+                penColor = penColor,
+                existingStrokes = existingStrokes,
+                laserPosition = laserPosition,
+                onStrokeFinished = onStrokeFinished,
+                onLaserMoved = onLaserMoved,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
